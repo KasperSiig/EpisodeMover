@@ -11,6 +11,7 @@ package episodemover.be;
  */
 public class Episode {
 
+    private String showTitle;
     private String title;
     private String season;
     private String episode;
@@ -18,20 +19,19 @@ public class Episode {
     private String newPath;
     private String posterPath;
 
-    public Episode(String title,
-            String season,
-            String episode,
-            String curPath,
-            String newPath,
-            String posterPath) {
-        this.title = title;
+    public Episode(String season, String episode) {
         this.season = season;
         this.episode = episode;
-        this.curPath = curPath;
-        this.newPath = newPath;
-        this.posterPath = posterPath;
     }
 
+    public String getShowTitle() {
+        return showTitle;
+    }
+
+    public void setShowTitle(String showTitle) {
+        this.showTitle = showTitle;
+    }
+    
     public String getTitle() {
         return title;
     }
