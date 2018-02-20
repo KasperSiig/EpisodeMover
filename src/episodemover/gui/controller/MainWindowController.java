@@ -27,16 +27,27 @@ public class MainWindowController implements Initializable {
     
     @FXML
     private Label label;
+    private EpisodeDAO eDAO = null;
     
     @FXML
     private void handleButtonAction(ActionEvent event) {
-        System.out.println("You clicked me!");
-        label.setText("Hello World!");
+        List<Episode> fin = eDAO.getFinishedEpisodes();
+        List<Episode> q = eDAO.getQueuedEpisodes();
+        System.out.println("Queued Episodes: \n");
+        for (Episode episode : q) {
+            System.out.println(episode.getNewPath());
+        }
+        System.out.println("");
+        System.out.println("");
+        System.out.println("Finished Episodes: \n");
+        for (Episode episode : fin) {
+            System.out.println(episode.getNewPath());
+        }
     }
     
     @Override
     public void initialize(URL url, ResourceBundle rb) {
-        EpisodeDAO eDAO = null;
+        
         try {
             eDAO = new EpisodeDAO();
         } catch (DALException ex) {
@@ -45,8 +56,10 @@ public class MainWindowController implements Initializable {
         try {
             List<Episode> ep = eDAO.getEpisodes();
             for (Episode episode : ep) {
-                System.out.println(episode);
+//                System.out.println(episode);
+                eDAO.moveFile(episode);
             }
+            
         } catch (DALException ex) {
             Logger.getLogger(MainWindowController.class.getName()).log(Level.SEVERE, null, ex);
         }

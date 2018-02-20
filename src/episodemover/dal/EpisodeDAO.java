@@ -5,6 +5,7 @@
  */
 package episodemover.dal;
 
+import com.sun.jmx.snmp.SnmpDefinitions;
 import episodemover.be.Episode;
 import episodemover.be.Show;
 import java.io.BufferedReader;
@@ -22,8 +23,10 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilder;
@@ -49,16 +52,24 @@ import org.xml.sax.SAXException;
 public class EpisodeDAO {
 
     private PropertiesDAO pDAO;
+    private ExecutorService exe;
+    private List<Episode> episodes;
+    private List<Episode> queuedEpisodes;
+    private List<Episode> finishedEpisodes;
 
     public EpisodeDAO() throws DALException {
+        this.finishedEpisodes = new ArrayList();
+        this.queuedEpisodes = new ArrayList();
+        this.exe = Executors.newFixedThreadPool(3);
         this.pDAO = new PropertiesDAO();
+        this.episodes = getEpisodes();
     }
 
     public Show getShow(String search) throws DALException {
         List<Show> shows = readShowFromXML();
         Show showRtn = null;
         for (Show show : shows) {
-            if (show.getTitle().equals(search)) {
+            if (show.getSearchName().equals(search)) {
                 showRtn = show;
             }
         }
@@ -80,9 +91,9 @@ public class EpisodeDAO {
                     if (numResults != 0) {
                         String title = obj.getJSONArray("results").getJSONObject(0).getString("name");
                         String id = String.valueOf(obj.getJSONArray("results").getJSONObject(0).getInt("id"));
-                        Show show = new Show(title, id);
+                        Show show = new Show(search, title, id);
                         System.out.println(show);
-                        addToXML(search, id);
+                        addToXML(search, show.getTitle(), id);
                         return show;
                     }
                 }
@@ -93,7 +104,7 @@ public class EpisodeDAO {
             } catch (IOException ex) {
                 throw new DALException(ex);
             }
-            return new Show("null", "null");
+            return new Show("null", "null", "null");
         }
     }
 
@@ -123,7 +134,7 @@ public class EpisodeDAO {
                 JSONObject obj = new JSONObject(json);
                 String title = obj.getString("name");
                 String curPath = file.getAbsolutePath();
-                String newPath = getNewPath(show.getTitle().trim(), season, title, file.getAbsolutePath());
+                String newPath = getNewPath(show.getTitle(), title, file);
                 String posterPath = null;
                 return new Episode(show.getTitle(), title, season, episode, curPath, newPath, posterPath);
 
@@ -174,7 +185,6 @@ public class EpisodeDAO {
     private String getName(String filePath) {
         filePath = filePath.replaceAll("\\.", " ");
         filePath = filePath.replaceAll("\\S\\d.*$", "");
-
         filePath = filePath.replaceAll("^.*\\\\", "");
 
         return filePath;
@@ -194,29 +204,43 @@ public class EpisodeDAO {
         }
     }
 
-    private String getNewPath(String showTitle, String season, String title, String filePath) {
+    private String getNewPath(String showTitle, String title, File file) {
+        String season = getSeasonEpisode(file.getName()).substring(0, 2);
+        String episode = getSeasonEpisode(file.getName()).substring(2, 4);
         String extension = "";
-        int i = filePath.lastIndexOf('.');
+        int i = file.getName().lastIndexOf('.');
         if (i > 0) {
-            extension = filePath.substring(i + 1);
+            extension = file.getName().substring(i + 1);
         }
         season = season.startsWith("0") ? season.substring(1, 2) : season;
-        return pDAO.getProperty("newPath") + showTitle + "\\Season " + season + "\\" + title + "." + extension;
+        episode = episode.startsWith("0") ? episode.substring(1, 2) : episode;
+        return pDAO.getProperty("newPath") + showTitle + "\\Season "
+                + season + "\\" + season + "x" + episode + " - "
+                + title + "." + extension;
     }
 
     public void moveFile(Episode e) {
-        try {
+        List<Episode> test = new ArrayList();
+        Callable<Episode> callable = () -> {
+            // Perform some computation
+            queuedEpisodes.add(e);
+            episodes.remove(e);
+            System.out.println("Moving: " + e.getNewPath());
             Path curPath = FileSystems.getDefault().getPath(e.getCurPath());
             Path newPath = FileSystems.getDefault().getPath(e.getNewPath());
             Files.move(curPath, newPath, REPLACE_EXISTING);
-        } catch (IOException ex) {
-            Logger.getLogger(EpisodeDAO.class.getName()).log(Level.SEVERE, null, ex);
-        }
+            System.out.println("Finished Moving: " + e.getNewPath());
+            finishedEpisodes.add(e);
+            queuedEpisodes.remove(e);
+            return e;
+        };
+
+        Future<Episode> future = exe.submit(callable);
+
     }
 
-    public void addToXML(String showTitle, String tmdbId) throws DALException {
+    public void addToXML(String searchName, String showTitle, String tmdbId) throws DALException {
         try {
-            System.out.println(showTitle);
             String filePath = "src/episodemover/res/xml/shows.xml";
             DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder documentBuilder;
@@ -230,6 +254,10 @@ public class EpisodeDAO {
             Element root = document.getDocumentElement();
 
             Element show = document.createElement("show");
+
+            Element searchNameEl = document.createElement("searchName");
+            searchNameEl.appendChild(document.createTextNode(searchName));
+            show.appendChild(searchNameEl);
 
             Element showTitleEl = document.createElement("showTitle");
             showTitleEl.appendChild(document.createTextNode(showTitle));
@@ -276,9 +304,10 @@ public class EpisodeDAO {
             for (int i = 0; i < nList.getLength(); i++) {
                 Node nNode = nList.item(i);
                 Element e = (Element) nNode;
+                String searchName = e.getElementsByTagName("searchName").item(0).getTextContent();
                 String showTitle = e.getElementsByTagName("showTitle").item(0).getTextContent();
                 String tmdbId = e.getElementsByTagName("tmdbId").item(0).getTextContent();
-                Show show = new Show(showTitle, tmdbId);
+                Show show = new Show(searchName, showTitle, tmdbId);
                 shows.add(show);
             }
 
@@ -287,5 +316,15 @@ public class EpisodeDAO {
             throw new DALException(ex);
         }
     }
+
+    public List<Episode> getQueuedEpisodes() {
+        return queuedEpisodes;
+    }
+
+    public List<Episode> getFinishedEpisodes() {
+        return finishedEpisodes;
+    }
+    
+    
 
 }

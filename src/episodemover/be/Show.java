@@ -10,10 +10,12 @@ package episodemover.be;
  * @author Kasper Siig
  */
 public class Show {
+    private String searchName;
     private String title;
     private String tmdbId;
 
-    public Show(String title, String tmdbId) {
+    public Show(String searchName, String title, String tmdbId) {
+        this.searchName = searchName;
         this.title = title;
         this.tmdbId = tmdbId;
     }
@@ -33,8 +35,14 @@ public class Show {
     public void setTmdbId(String tmdbId) {
         this.tmdbId = tmdbId;
     }
-    
-    
+
+    public String getSearchName() {
+        return searchName;
+    }
+
+    public void setSearchName(String searchName) {
+        this.searchName = searchName;
+    }
 
     @Override
     public String toString() {
