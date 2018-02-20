@@ -19,10 +19,23 @@ public class Episode {
     private String newPath;
     private String posterPath;
 
-    public Episode(String season, String episode) {
+    public Episode(String showTitle, 
+            String title, 
+            String season, 
+            String episode, 
+            String curPath, 
+            String newPath, 
+            String posterPath) {
+        this.showTitle = showTitle;
+        this.title = title;
         this.season = season;
         this.episode = episode;
+        this.curPath = curPath;
+        this.newPath = newPath;
+        this.posterPath = posterPath;
     }
+
+    
 
     public String getShowTitle() {
         return showTitle;

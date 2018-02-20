@@ -5,6 +5,7 @@
  */
 package episodemover.gui.controller;
 
+import episodemover.be.Episode;
 import episodemover.dal.DALException;
 import episodemover.dal.EpisodeDAO;
 import java.io.File;
@@ -42,7 +43,10 @@ public class MainWindowController implements Initializable {
             Logger.getLogger(MainWindowController.class.getName()).log(Level.SEVERE, null, ex);
         }
         try {
-            eDAO.getEpisode(new File("\"D:\\Torrent\\The.Grand.Tour.2016.S02E09.Breaking.badly.1080p.AMZN.WEBRip.DDP5.1.x264-QOQ[rarbg]\""));
+            List<Episode> ep = eDAO.getEpisodes();
+            for (Episode episode : ep) {
+                System.out.println(episode);
+            }
         } catch (DALException ex) {
             Logger.getLogger(MainWindowController.class.getName()).log(Level.SEVERE, null, ex);
         }
