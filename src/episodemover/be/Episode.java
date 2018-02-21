@@ -35,67 +35,72 @@ public class Episode {
         this.posterPath = posterPath;
     }
 
-    
+    @Override
+    public String toString() {
+        return "Episode{" + "title=" + title + ", season=" + season + ", episode=" + episode + ", curPath=" + curPath + ", newPath=" + newPath + ", posterPath=" + posterPath + '}';
+    }
 
+    /**
+     * Returns showTitle
+     * 
+     * @return 
+     */
     public String getShowTitle() {
         return showTitle;
     }
 
-    public void setShowTitle(String showTitle) {
-        this.showTitle = showTitle;
-    }
-    
+    /**
+     * Returns title
+     * 
+     * @return 
+     */
     public String getTitle() {
         return title;
     }
 
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
+    /**
+     * Returns season
+     * 
+     * @return 
+     */
     public String getSeason() {
         return season;
     }
 
-    public void setSeason(String season) {
-        this.season = season;
-    }
-
+    /**
+     * Returns episode
+     * 
+     * @return 
+     */
     public String getEpisode() {
         return episode;
     }
 
-    public void setEpisode(String episode) {
-        this.episode = episode;
-    }
-
+    /**
+     * Returns current path
+     * 
+     * @return 
+     */
     public String getCurPath() {
         return curPath;
     }
 
-    public void setCurPath(String curPath) {
-        this.curPath = curPath;
-    }
-
+    /**
+     * Returns new path
+     * 
+     * @return 
+     */
     public String getNewPath() {
         return newPath;
     }
 
-    public void setNewPath(String newPath) {
-        this.newPath = newPath;
-    }
-
+    /**
+     * Returns poster path
+     * 
+     * @return 
+     */
     public String getPosterPath() {
         return posterPath;
-    }
-
-    public void setPosterPath(String posterPath) {
-        this.posterPath = posterPath;
-    }
-
-    @Override
-    public String toString() {
-        return "Episode{" + "title=" + title + ", season=" + season + ", episode=" + episode + ", curPath=" + curPath + ", newPath=" + newPath + ", posterPath=" + posterPath + '}';
     }
 
 }

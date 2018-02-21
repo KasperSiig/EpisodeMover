@@ -5,7 +5,6 @@
  */
 package episodemover.dal;
 
-import com.sun.jmx.snmp.SnmpDefinitions;
 import episodemover.be.Episode;
 import episodemover.be.Show;
 import java.io.BufferedReader;
@@ -57,14 +56,87 @@ public class EpisodeDAO {
     private List<Episode> queuedEpisodes;
     private List<Episode> finishedEpisodes;
 
+    /**
+     * Constructor for EpisodeDAO
+     * 
+     * @throws DALException 
+     */
     public EpisodeDAO() throws DALException {
+        this.pDAO = new PropertiesDAO();
+        this.episodes = getEpisodesInDir(pDAO.getProperty("curPath"));
         this.finishedEpisodes = new ArrayList();
         this.queuedEpisodes = new ArrayList();
-        this.exe = Executors.newFixedThreadPool(3);
-        this.pDAO = new PropertiesDAO();
-        this.episodes = getEpisodes();
+        this.exe = Executors.newFixedThreadPool(5);
     }
+    
+    /**
+     * Processes each video file in the directory, defined by the parameter,
+     * and returns them in a List.
+     * 
+     * @param dir 
+     * @return List of Episode objects.
+     * @throws DALException 
+     */
+    public List<Episode> getEpisodesInDir(String dir) throws DALException {
+        List<File> episodesInDir = getFilesInDir(dir);
+        List<Episode> resultList = new ArrayList();
+        for (File file : episodesInDir) {
+            resultList.add(getEpisode(file, pDAO.getProperty("tmdb_id")));
+        }
+        return resultList;
+    }
+    
+    /**
+     * Uses TMDB API to retrieve information about a specific episode.
+     * If episode could not be found, method will return an Episode object
+     * filled with null, except for current path, which will be the file's path.
+     * 
+     * @param file
+     * @param tmdbKey
+     * @return Episode object
+     * @throws DALException 
+     */
+    public Episode getEpisode(File file, String tmdbKey) throws DALException {
+        try {
+            String showTitle = getName(file.getName());
+            Show show = getShow(showTitle.trim().replace(" ", "+"));
+            String season = getSeasonEpisode(file.getAbsolutePath()).substring(0, 2);
+            String episode = getSeasonEpisode(file.getAbsolutePath()).substring(2, 4);
+            URL url = new URL("https://api.themoviedb.org/3/tv/" + show.getTmdbId() + "/season/" + season + "/episode/" + episode + "?api_key=" + tmdbKey);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            if (conn.getResponseCode() == 200) {
+                BufferedReader br = new BufferedReader(new InputStreamReader(
+                        (conn.getInputStream())));
+                String json = br.readLine();
+                JSONObject obj = new JSONObject(json);
+                String title = obj.getString("name");
+                String curPath = file.getAbsolutePath();
+                String newPath = getNewPath(show.getTitle(), title, file);
+                String posterPath = show.getPosterPath();
+                return new Episode(show.getTitle(), title, season, episode, curPath, newPath, posterPath);
 
+            } else {
+                return new Episode(null, null, null, null, file.getAbsolutePath(), null, null);
+            }
+        } catch (MalformedURLException ex) {
+            throw new DALException(ex);
+        } catch (ProtocolException ex) {
+            throw new DALException(ex);
+        } catch (IOException ex) {
+            throw new DALException(ex);
+        }
+    }
+    
+    /**
+     * Either gets the show from XML file, if it exists, otherwise it uses TMDB
+     * API to get details of the show.
+     * 
+     * @param search
+     * @return
+     * @throws DALException 
+     */
     public Show getShow(String search) throws DALException {
         List<Show> shows = readShowFromXML();
         Show showRtn = null;
@@ -91,9 +163,10 @@ public class EpisodeDAO {
                     if (numResults != 0) {
                         String title = obj.getJSONArray("results").getJSONObject(0).getString("name");
                         String id = String.valueOf(obj.getJSONArray("results").getJSONObject(0).getInt("id"));
-                        Show show = new Show(search, title, id);
+                        String posterPath = "https://image.tmdb.org/t/p/w500" + obj.getJSONArray("results").getJSONObject(0).getString("poster_path");
+                        Show show = new Show(search, title, id, posterPath);
                         System.out.println(show);
-                        addToXML(search, show.getTitle(), id);
+                        addToXML(search, show.getTitle(), id, posterPath);
                         return show;
                     }
                 }
@@ -104,52 +177,17 @@ public class EpisodeDAO {
             } catch (IOException ex) {
                 throw new DALException(ex);
             }
-            return new Show("null", "null", "null");
+            return new Show("null", "null", "null", "null");
         }
     }
 
-    public List<Episode> getEpisodes() throws DALException {
-        List<File> episodesInDir = getFilesInDir(pDAO.getProperty("curPath"));
-        List<Episode> resultList = new ArrayList();
-        for (File file : episodesInDir) {
-            resultList.add(getEpisode(file));
-        }
-        return resultList;
-    }
-
-    public Episode getEpisode(File file) throws DALException {
-        try {
-            String showTitle = getName(file.getName());
-            Show show = getShow(showTitle.trim().replace(" ", "+"));
-            String season = getSeasonEpisode(file.getAbsolutePath()).substring(0, 2);
-            String episode = getSeasonEpisode(file.getAbsolutePath()).substring(2, 4);
-            URL url = new URL("https://api.themoviedb.org/3/tv/" + show.getTmdbId() + "/season/" + season + "/episode/" + episode + "?api_key=6e60833d0f6349beaa9768b8eb6f4d7e");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Accept", "application/json");
-            if (conn.getResponseCode() == 200) {
-                BufferedReader br = new BufferedReader(new InputStreamReader(
-                        (conn.getInputStream())));
-                String json = br.readLine();
-                JSONObject obj = new JSONObject(json);
-                String title = obj.getString("name");
-                String curPath = file.getAbsolutePath();
-                String newPath = getNewPath(show.getTitle(), title, file);
-                String posterPath = null;
-                return new Episode(show.getTitle(), title, season, episode, curPath, newPath, posterPath);
-
-            } else {
-                return new Episode(null, null, null, null, file.getAbsolutePath(), null, null);
-            }
-        } catch (MalformedURLException ex) {
-            throw new DALException(ex);
-        } catch (ProtocolException ex) {
-            throw new DALException(ex);
-        } catch (IOException ex) {
-            throw new DALException(ex);
-        }
-    }
-
+    /**
+     * Returns a List of File objects, containing all .mp4, .mkv and .avi files
+     * in the chosen directory.
+     * 
+     * @param path
+     * @return 
+     */
     public List<File> getFilesInDir(String path) {
         File directory = new File(path);
 
@@ -182,6 +220,12 @@ public class EpisodeDAO {
         return returnList;
     }
 
+    /**
+     * Gets the name of a show from the filename.
+     * 
+     * @param filePath
+     * @return 
+     */
     private String getName(String filePath) {
         filePath = filePath.replaceAll("\\.", " ");
         filePath = filePath.replaceAll("\\S\\d.*$", "");
@@ -190,6 +234,13 @@ public class EpisodeDAO {
         return filePath;
     }
 
+    /**
+     * Returns the season number and episode number of the episode, returned
+     * in the format "SSEE"
+     * 
+     * @param filePath
+     * @return 
+     */
     private String getSeasonEpisode(String filePath) {
         try {
             filePath = filePath.toLowerCase();
@@ -204,6 +255,14 @@ public class EpisodeDAO {
         }
     }
 
+    /**
+     * Gets the new path which an episode should be moved to.
+     * 
+     * @param showTitle
+     * @param title
+     * @param file
+     * @return 
+     */
     private String getNewPath(String showTitle, String title, File file) {
         String season = getSeasonEpisode(file.getName()).substring(0, 2);
         String episode = getSeasonEpisode(file.getName()).substring(2, 4);
@@ -219,27 +278,15 @@ public class EpisodeDAO {
                 + title + "." + extension;
     }
 
-    public void moveFile(Episode e) {
-        List<Episode> test = new ArrayList();
-        Callable<Episode> callable = () -> {
-            // Perform some computation
-            queuedEpisodes.add(e);
-            episodes.remove(e);
-            System.out.println("Moving: " + e.getNewPath());
-            Path curPath = FileSystems.getDefault().getPath(e.getCurPath());
-            Path newPath = FileSystems.getDefault().getPath(e.getNewPath());
-            Files.move(curPath, newPath, REPLACE_EXISTING);
-            System.out.println("Finished Moving: " + e.getNewPath());
-            finishedEpisodes.add(e);
-            queuedEpisodes.remove(e);
-            return e;
-        };
-
-        Future<Episode> future = exe.submit(callable);
-
-    }
-
-    public void addToXML(String searchName, String showTitle, String tmdbId) throws DALException {
+    /**
+     * Adds show to XML file.
+     * 
+     * @param searchName
+     * @param showTitle
+     * @param tmdbId
+     * @throws DALException 
+     */
+    public void addToXML(String searchName, String showTitle, String tmdbId, String posterPath) throws DALException {
         try {
             String filePath = "src/episodemover/res/xml/shows.xml";
             DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
@@ -266,6 +313,10 @@ public class EpisodeDAO {
             Element tmdbIdEl = document.createElement("tmdbId");
             tmdbIdEl.appendChild(document.createTextNode(tmdbId));
             show.appendChild(tmdbIdEl);
+            
+            Element posterEl = document.createElement("posterPath");
+            posterEl.appendChild(document.createTextNode(posterPath));
+            show.appendChild(posterEl);
 
             root.appendChild(show);
 
@@ -288,7 +339,13 @@ public class EpisodeDAO {
             throw new DALException(ex);
         }
     }
-
+    
+    /**
+     * Reads all the shows from XML file into a List of Show objects.
+     * 
+     * @return
+     * @throws DALException 
+     */
     private List<Show> readShowFromXML() throws DALException {
         try {
             List<Show> shows = new ArrayList();
@@ -307,7 +364,8 @@ public class EpisodeDAO {
                 String searchName = e.getElementsByTagName("searchName").item(0).getTextContent();
                 String showTitle = e.getElementsByTagName("showTitle").item(0).getTextContent();
                 String tmdbId = e.getElementsByTagName("tmdbId").item(0).getTextContent();
-                Show show = new Show(searchName, showTitle, tmdbId);
+                String posterPath = e.getElementsByTagName("posterPath").item(0).getTextContent();
+                Show show = new Show(searchName, showTitle, tmdbId, posterPath);
                 shows.add(show);
             }
 
@@ -317,10 +375,52 @@ public class EpisodeDAO {
         }
     }
 
+    /**
+     * Moves an Episode object to its new folder. In the process moving it to
+     * queued episodes List, and finished episodes List respectively.
+     * 
+     * @param e 
+     */
+    public void moveFile(Episode e) {
+        Callable<Episode> callable = () -> {
+            // Perform some computation
+            queuedEpisodes.add(e);
+            episodes.remove(e);
+            System.out.println("Moving: " + e.getNewPath());
+            Path curPath = FileSystems.getDefault().getPath(e.getCurPath());
+            Path newPath = FileSystems.getDefault().getPath(e.getNewPath());
+            Files.move(curPath, newPath, REPLACE_EXISTING);
+            System.out.println("Finished Moving: " + e.getNewPath());
+            finishedEpisodes.add(e);
+            queuedEpisodes.remove(e);
+            return e;
+        };
+        Future<Episode> future = exe.submit(callable);
+    }
+    
+    /**
+     * Returns episodes.
+     * 
+     * @return 
+     */
+    public List<Episode> getEpisodes() {
+        return episodes;
+    }
+    
+    /**
+     * Returns queued episodes.
+     * 
+     * @return 
+     */
     public List<Episode> getQueuedEpisodes() {
         return queuedEpisodes;
     }
 
+    /**
+     * Returns finished episodes.
+     * 
+     * @return 
+     */
     public List<Episode> getFinishedEpisodes() {
         return finishedEpisodes;
     }

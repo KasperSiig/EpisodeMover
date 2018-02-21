@@ -13,37 +13,32 @@ public class Show {
     private String searchName;
     private String title;
     private String tmdbId;
+    private String posterPath;
 
-    public Show(String searchName, String title, String tmdbId) {
+    public Show(String searchName, String title, String tmdbId, String posterPath) {
         this.searchName = searchName;
         this.title = title;
         this.tmdbId = tmdbId;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getTmdbId() {
-        return tmdbId;
-    }
-
-    public void setTmdbId(String tmdbId) {
-        this.tmdbId = tmdbId;
+        this.posterPath = posterPath;
     }
 
     public String getSearchName() {
         return searchName;
     }
 
-    public void setSearchName(String searchName) {
-        this.searchName = searchName;
+    public String getTitle() {
+        return title;
     }
 
+    public String getTmdbId() {
+        return tmdbId;
+    }
+
+    public String getPosterPath() {
+        return posterPath;
+    }
+
+    
     @Override
     public String toString() {
         return "Show{" + "title=" + title + ", tmdbId=" + tmdbId + '}';
